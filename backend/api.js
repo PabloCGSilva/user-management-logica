@@ -1,111 +1,85 @@
 const express = require('express');
-const axios = require('axios');
 const fs = require('fs');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-
+const path = require('path');
 const router = express.Router();
 
-const csvFilePath = 'users.csv';
+// Atualize este caminho para o local correto do seu arquivo CSV
+const csvFilePath = path.join(__dirname, 'users.csv');
 
-const csvWriter = createCsvWriter({
-  path: csvFilePath,
-  header: [
-    { id: 'id', title: 'ID' },
-    { id: 'first_name', title: 'First Name' },
-    { id: 'last_name', title: 'Last Name' },
-    { id: 'email', title: 'Email' }
-  ],
-  append: true
-});
-
-// Fetch users from API
-router.get('/users', async (req, res) => {
-    const size = req.query.size || 50; // Default to 10 if size parameter is not provided
-  
-    try {
-      const response = await axios.get(`https://random-data-api.com/api/users/random_user?size=${size}`);
-      res.json(response.data);
-    } catch (error) {
-      res.status(500).json({ error: 'Error fetching users' });
+// Função auxiliar para garantir que o arquivo CSV existe
+const ensureCSVFileExists = (callback) => {
+  fs.access(csvFilePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      // Arquivo não existe, vamos criá-lo
+      fs.writeFile(csvFilePath, '', 'utf8', (err) => {
+        if (err) {
+          return callback(err);
+        }
+        callback(null);
+      });
+    } else {
+      callback(null);
     }
   });
+};
 
-// Save users to CSV
-router.post('/save', async (req, res) => {
-  const users = req.body;
-  try {
-    await csvWriter.writeRecords(users);
-    res.status(200).send('Users saved successfully');
-  } catch (error) {
-    res.status(500).send('Error saving users');
-  }
-});
+// Função auxiliar para ler usuários do CSV
+const readUsersFromCSV = (callback) => {
+  ensureCSVFileExists((err) => {
+    if (err) {
+      return callback(err, null);
+    }
 
-// Fetch users from CSV
-router.get('/csv-users', (req, res) => {
-  fs.readFile(csvFilePath, 'utf8', (err, data) => {
+    fs.readFile(csvFilePath, 'utf8', (err, data) => {
+      if (err) {
+        return callback(err, null);
+      }
+
+      const users = data.split('\n').filter(row => row.length > 0).map(row => row.split(',')).map(user => ({
+        id: user[0],
+        first_name: user[1],
+        last_name: user[2],
+        email: user[3]
+      }));
+
+      callback(null, users);
+    });
+  });
+};
+
+// Função auxiliar para escrever usuários no CSV
+const writeUsersToCSV = (users, callback) => {
+  const updatedData = users.map(user => `${user.id},${user.first_name},${user.last_name},${user.email}`).join('\n');
+  fs.writeFile(csvFilePath, updatedData, 'utf8', (err) => {
+    if (err) {
+      return callback(err);
+    }
+
+    callback(null);
+  });
+};
+
+// Rota para obter todos os usuários
+router.get('/users', (req, res) => {
+  readUsersFromCSV((err, users) => {
     if (err) {
       console.error('Error reading CSV file:', err);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
-
-    const rows = data.split('\n').filter(row => row.length > 0);
-    const headers = rows.shift().split(',');
-
-    const users = rows.map(row => {
-      const values = row.split(',');
-      return headers.reduce((obj, header, index) => {
-        obj[header.trim()] = values[index].trim();
-        return obj;
-      }, {});
-    });
 
     res.json(users);
   });
 });
 
-// Edit user in CSV
-router.put('/users/:id', async (req, res) => {
-  const userId = req.params.id;
-  const updatedUser = req.body;
-
-  fs.readFile(csvFilePath, 'utf8', (err, data) => {
-    if (err) {
-      console.error('Error reading CSV file:', err);
-      return res.status(500).json({ error: 'Internal Server Error' });
-    }
-
-    const users = data.split('\n').filter(row => row.length > 0).map(row => row.split(',')).map(user => ({
-      id: user[0],
-      first_name: user[1],
-      last_name: user[2],
-      email: user[3]
-    }));
-
-    const userIndex = users.findIndex(user => user.id === userId);
-
-    if (userIndex === -1) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    users[userIndex] = { ...users[userIndex], ...updatedUser };
-
-    const updatedData = users.map(user => `${user.id},${user.first_name},${user.last_name},${user.email}`).join('\n');
-
-    fs.writeFile(csvFilePath, updatedData, 'utf8', (err) => {
-      if (err) {
-        console.error('Error writing to CSV file:', err);
-        return res.status(500).json({ error: 'Internal Server Error' });
-      }
-
-      res.json(updatedUser);
-    });
-  });
-});
-
-// Delete user from CSV
-router.delete('/users/:id', async (req, res) => {
-  const userId = req.params.id;
+// Rota para salvar um usuário no CSV
+// Rota para salvar um novo usuário no CSV
+router.post('/save', (req, res) => {
+  const newUser = {
+    id: req.body.id,
+    first_name: req.body.first_name,
+    last_name: req.body.last_name,
+    email: req.body.email
+  };
 
   fs.readFile(csvFilePath, 'utf8', (err, data) => {
     if (err) {
@@ -120,6 +94,66 @@ router.delete('/users/:id', async (req, res) => {
       email: user[3]
     }));
 
+    users.push(newUser);
+
+    const updatedData = users.map(user => `${user.id},${user.first_name},${user.last_name},${user.email}`).join('\n');
+
+    fs.writeFile(csvFilePath, updatedData, 'utf8', (err) => {
+      if (err) {
+        console.error('Error writing to CSV file:', err);
+        return res.status(500).json({ error: 'Internal Server Error' });
+      }
+
+      res.json({ message: 'User saved successfully' });
+    });
+  });
+});
+
+
+// Rota para editar um usuário salvo no CSV
+router.put('/users/:id', (req, res) => {
+  const userId = req.params.id;
+
+  readUsersFromCSV((err, users) => {
+    if (err) {
+      console.error('Error reading CSV file:', err);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+
+    const userIndex = users.findIndex(user => user.id === userId);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    users[userIndex] = {
+      id: userId,
+      first_name: req.body.first_name,
+      last_name: req.body.last_name,
+      email: req.body.email
+    };
+
+    writeUsersToCSV(users, (err) => {
+      if (err) {
+        console.error('Error writing to CSV file:', err);
+        return res.status(500).json({ error: 'Internal Server Error' });
+      }
+
+      res.json({ message: 'User updated successfully' });
+    });
+  });
+});
+
+// Rota para deletar um usuário salvo no CSV
+router.delete('/users/:id', (req, res) => {
+  const userId = req.params.id;
+
+  readUsersFromCSV((err, users) => {
+    if (err) {
+      console.error('Error reading CSV file:', err);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+
     const userIndex = users.findIndex(user => user.id === userId);
 
     if (userIndex === -1) {
@@ -128,9 +162,7 @@ router.delete('/users/:id', async (req, res) => {
 
     users.splice(userIndex, 1);
 
-    const updatedData = users.map(user => `${user.id},${user.first_name},${user.last_name},${user.email}`).join('\n');
-
-    fs.writeFile(csvFilePath, updatedData, 'utf8', (err) => {
+    writeUsersToCSV(users, (err) => {
       if (err) {
         console.error('Error writing to CSV file:', err);
         return res.status(500).json({ error: 'Internal Server Error' });

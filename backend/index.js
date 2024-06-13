@@ -11,12 +11,12 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
-// Serve the frontend files
-app.use(express.static(path.join(__dirname, '../frontend/user-management-frontend/src')));
+// Serve the frontend build files
+app.use(express.static(path.join(__dirname, '../frontend/user-management-frontend/build')));
 
 // Handle requests for the root path
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/user-management-frontend/src', 'App.js'));
+  res.sendFile(path.join(__dirname, '../frontend/user-management-frontend/build', 'index.html'));
 });
 
 app.use('/api', apiRoutes);
