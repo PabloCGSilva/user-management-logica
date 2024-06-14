@@ -1,5 +1,3 @@
-# user-management-logica
-
 # User Management App
 
 A web application for managing user data fetched from an API and storing it in a CSV file.
