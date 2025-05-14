@@ -25,18 +25,15 @@ This application fetches user data from an external API and allows users to save
 ## Installation
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/PabloCGSilva/user-management-logica.git
+
+       git clone https://github.com/PabloCGSilva/user-management-logica.git
 
 
 Navigate to the project directory:
 
-    ```bash
     cd user-management-logica
 
 Install dependencies:
-
-    ```bash
 
     npm install
 
@@ -44,13 +41,9 @@ Usage
 
 Start the backend server:
 
-    ```bash
-
     npm start
 
 Start the frontend development server:
-
-    ```bash
 
     cd frontend/user-management-frontend
     
